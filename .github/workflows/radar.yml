@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: bitvavo-radar-state
+  cancel-in-progress: false
+
 jobs:
   scan:
     runs-on: ubuntu-latest
@@ -23,8 +27,26 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Restore historical state
+        uses: actions/cache/restore@v4
+        with:
+          path: .radar_state
+          key: bitvavo-state-${{ github.run_id }}
+          restore-keys: |
+            bitvavo-state-
+
       - name: Run Bitvavo scanner
         run: python scanner.py
+
+      - name: Check liquidity and track outcomes
+        run: python enrich.py
+
+      - name: Save historical state
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: .radar_state
+          key: bitvavo-state-${{ github.run_id }}
 
       - name: Upload scan results
         if: always()
@@ -37,4 +59,3 @@ jobs:
             reports/*.md
           if-no-files-found: error
           retention-days: 30
-# Initialisation du workflow Bitvavo Radar
