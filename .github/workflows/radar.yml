@@ -1,0 +1,39 @@
+
+name: Bitvavo Radar
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */4 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run Bitvavo scanner
+        run: python scanner.py
+
+      - name: Upload scan results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-scan-${{ github.run_number }}
+          path: |
+            *.json
+            *.csv
+            *.md
+          if-no-files-found: warn
+          retention-days: 30
