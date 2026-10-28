@@ -58,11 +58,34 @@ def scan_one(market):
     # Closed candles only: avoids misleading partial-hour volume and breakouts.
     h = [x for x in candles(market, '1h', 100) if x['t'] + 3600000 <= now_ms]
     d = [x for x in candles(market, '1d', 55) if x['t'] + 86400000 <= now_ms]
-    if len(h) < 73 or len(d) < 32:
+    if len(d) < 32 or len(h) < 2:
         return {'market': market, 'status': 'INSUFFICIENT_DATA', 'score': None}
-    # Avoid comparing nonconsecutive bars on thinly traded markets.
-    if any(h[i]['t'] - h[i-1]['t'] != 3600000 for i in range(len(h)-72, len(h))):
-        return {'market': market, 'status': 'GAPPED_HOURLY_DATA', 'score': None}
+    # Reconstruct an exact 73-hour grid. Missing Bitvavo candles can mean no trades.
+    # Carry forward the last traded close, with zero volume; never invent trades.
+    # Require sufficient observed activity before scoring to avoid false positives.
+    hour_ms = 3600000
+    latest_closed_start = (now_ms // hour_ms - 1) * hour_ms
+    observed = {x['t']: x for x in h}
+    grid_start = latest_closed_start - 72 * hour_ms
+    preceding = [x for x in h if x['t'] < grid_start]
+    previous = preceding[-1]['c'] if preceding else None
+    rebuilt, observed_count = [], 0
+    for ts in range(grid_start, latest_closed_start + 1, hour_ms):
+        if ts in observed:
+            row = observed[ts]
+            previous = row['c']
+            observed_count += 1
+        elif previous is not None:
+            row = {'t': ts, 'o': previous, 'h': previous, 'l': previous,
+                   'c': previous, 'v': 0.0}
+        else:
+            return {'market': market, 'status': 'INSUFFICIENT_DATA', 'score': None}
+        rebuilt.append(row)
+    recent_observed = sum(x['t'] in observed for x in rebuilt[-6:])
+    if observed_count < 36 or recent_observed < 4:
+        return {'market': market, 'status': 'THIN_OR_GAPPED_MARKET', 'score': None,
+                'observed_hours_73': observed_count, 'observed_hours_6': recent_observed}
+    h = rebuilt
     price = h[-1]['c']
     v24 = sum(x['v'] for x in h[-24:])
     prev24 = sum(x['v'] for x in h[-48:-24])
@@ -128,6 +151,7 @@ def scan_one(market):
         'change_1h_pct': change_1h, 'change_6h_pct': change_6h,
         'change_24h_pct': change_24h, 'change_7d_pct': change_7d, 'change_30d_pct': change_30d,
         'volume_24h_base': v24, 'relative_volume_24h': relative_volume,
+        'observed_hours_73': observed_count, 'observed_hours_6': recent_observed,
         'relative_volume_6h': rel6, 'estimated_turnover_24h_eur': round(turnover, 2),
         'previous_24h_high_eur': prior24high, 'previous_24h_low_eur': prior24low,
         'previous_7d_high_eur': prior7high, 'previous_30d_high_eur': prior30high,
@@ -196,8 +220,9 @@ def main():
     (OUT / 'latest.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print('\n'.join(lines[:18]), flush=True)
     valid = sum(x.get('score') is not None for x in results)
-    if valid < max(1, math.ceil(len(eur) * 0.6)):
-        raise RuntimeError(f'Only {valid}/{len(eur)} markets have sufficient data; inspect report')
+    print(f'Valid scored markets: {valid}/{len(eur)}; API errors: {len(errors)}', flush=True)
+    if not valid or len(errors) > len(eur) * 0.4:
+        raise RuntimeError('Insufficient usable data or excessive API errors; inspect report')
 
 
 if __name__ == '__main__':
