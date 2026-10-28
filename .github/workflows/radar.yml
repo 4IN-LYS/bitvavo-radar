@@ -40,6 +40,9 @@ jobs:
 
       - name: Check liquidity and track outcomes
         run: python enrich.py
+        
+      - name: Analyze multiple timeframes
+        run: python multitimeframe.py
 
       - name: Save historical state
         if: success()
