@@ -44,6 +44,9 @@ jobs:
       - name: Analyze multiple timeframes
         run: python multitimeframe.py
 
+      - name: Calculate V0.5 scores
+        run: python scoring_v05.py
+
       - name: Save historical state
         if: success()
         uses: actions/cache/save@v4
