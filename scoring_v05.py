@@ -35,7 +35,7 @@ def score_one(row):
     reasons, warnings = out['v05_reasons'], out['v05_warnings']
     change24, change7, change30 = (row['change_24h_pct'],row['change_7d_pct'],row['change_30d_pct'])
     bb = val(h4,'bollinger_width_percentile_in_sample')
-rv15 = val(m15,'relative_last_candle_volume_20')
+    rv15 = val(m15,'relative_last_candle_volume_20')
     rv1 = val(h1,'relative_last_candle_volume_20')
     rsi4 = val(h4,'rsi14')
     rsi1 = val(h1,'rsi14')
