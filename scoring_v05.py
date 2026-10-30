@@ -81,3 +81,43 @@ rv15 = val(m15,'relative_last_candle_volume_20')
     if bb is not None and bb > 80 and change24 > 8: penalty += 12
     p = max(0,min(100,p-penalty))
     pull = max(0,min(100,pull-penalty))
+out.update(pre_breakout_score=p,pullback_score=pull,v05_rank_score=max(p,pull),
+               v05_label=('EXTENDED_REVIEW' if penalty >= 30 else
+                          'PRE_BREAKOUT_WATCH' if p >= 65 and p >= pull else
+                          'PULLBACK_WATCH' if pull >= 65 else
+                          'EARLY_REVIEW' if max(p,pull) >= 45 else 'LOW_CONVICTION'),
+               v05_penalty=penalty)
+    return out
+
+def main():
+    report = json.loads(REPORT.read_text(encoding='utf-8'))
+    candidates = []
+    for row in report['results']:
+        if 'multi_timeframe' not in row: continue
+        row['v05'] = score_one(row)
+        candidates.append(row)
+    candidates.sort(key=lambda r: (r['v05']['v05_rank_score'] if r['v05']['v05_rank_score'] is not None else -1),reverse=True)
+    report['v05_summary'] = {'version':'0.5.0','evaluated':len(candidates),
+       'eligible':sum(x['v05']['eligible'] for x in candidates),
+       'methodology':'Two heuristic scores, not calibrated probabilities or buy recommendations; initial score preserved.',
+       'limitations':['No candle-sequence exhaustion confirmation','No validated historical predictive performance','No catalyst/unlock verification']}
+    REPORT.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+    fields=['market','initial_score','v05_rank_score','pre_breakout_score','pullback_score','v05_label','v05_penalty','warnings']
+    with Path('reports/v05_ranking.csv').open('w',newline='',encoding='utf-8-sig') as f:
+        w=csv.DictWriter(f,fieldnames=fields);w.writeheader()
+        for r in candidates:
+            v=r['v05'];w.writerow({'market':r['market'],'initial_score':r.get('score'),
+                'v05_rank_score':v['v05_rank_score'],'pre_breakout_score':v['pre_breakout_score'],
+                'pullback_score':v['pullback_score'],'v05_label':v['v05_label'],
+                'v05_penalty':v.get('v05_penalty'),'warnings':'; '.join(v['v05_warnings'])})
+    lines=['# Bitvavo V0.5 research ranking','',
+      f"Evaluated: {len(candidates)}; eligible: {report['v05_summary']['eligible']}",
+      '', '**Scores are heuristic, not probabilities or buy signals.**','',
+      '| Market | Initial | Pre-breakout | Pullback | Penalty | Label |',
+      '|---|---:|---:|---:|---:|---|']
+    for r in candidates:
+        v=r['v05'];fmt=lambda x: str(x) if x is not None else 'n/a'
+        lines.append(f"| {r['market']} | {fmt(r.get('score'))} | {fmt(v['pre_breakout_score'])} | {fmt(v['pullback_score'])} | {fmt(v.get('v05_penalty'))} | {v['v05_label']} |")
+    Path('reports/v05_ranking.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+    print(f"V0.5 evaluated {len(candidates)}, eligible {report['v05_summary']['eligible']}")
+if __name__ == '__main__': main()
