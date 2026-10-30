@@ -81,7 +81,7 @@ def score_one(row):
     if bb is not None and bb > 80 and change24 > 8: penalty += 12
     p = max(0,min(100,p-penalty))
     pull = max(0,min(100,pull-penalty))
-out.update(pre_breakout_score=p,pullback_score=pull,v05_rank_score=max(p,pull),
+    out.update(pre_breakout_score=p,pullback_score=pull,v05_rank_score=max(p,pull),
                v05_label=('EXTENDED_REVIEW' if penalty >= 30 else
                           'PRE_BREAKOUT_WATCH' if p >= 65 and p >= pull else
                           'PULLBACK_WATCH' if pull >= 65 else
