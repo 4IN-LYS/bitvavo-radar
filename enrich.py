@@ -51,8 +51,14 @@ def main():
     report=json.loads(report_path.read_text(encoding='utf-8'))
     now=ts(report['generated_at_utc'])
     rows=report['results']
-    scored={r['market']:r for r in rows if r.get('score') is not None and r.get('price_eur')}
-    candidates=sorted(scored.values(),key=lambda r:(r.get('score',-999),r.get('estimated_turnover_24h_eur',0)),reverse=True)[:TOP_N]
+    scored = {r['market']: r for r in rows if r.get('score') is not None and r.get('price_eur')}
+    candidates = select(list(scored.values()), limit=TOP_N)
+    report['selection_v051'] = {
+        'version': '0.5.1',
+        'markets': [r['market'] for r in candidates],
+        'groups': {g: sum(r['selection_group'] == g for r in candidates)
+                   for g in ('PREPARATION', 'PULLBACK', 'LEGACY')}
+    }
     errors=[]
     for r in candidates:
         try: r.update(book(r['market']))
