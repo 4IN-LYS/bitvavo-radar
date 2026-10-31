@@ -7,6 +7,7 @@ import os
 import time
 import urllib.request
 from pathlib import Path
+from selection_v051 import select
 
 REPORTS = Path('reports')
 STATE = Path('.radar_state')
