@@ -167,9 +167,9 @@ def analyze(raw, interval):
 
 def main():
     report = json.loads(REPORT.read_text(encoding='utf-8'))
-    candidates = [r for r in report['results'] if r.get('score') is not None]
-    candidates.sort(key=lambda r: (r.get('score', -999), r.get('estimated_turnover_24h_eur', 0)), reverse=True)
-    candidates = candidates[:TOP_N]
+    selected = set(report['selection_v051']['markets'])
+    candidates = [r for r in report['results'] if r['market'] in selected]
+    candidates.sort(key=lambda r: report['selection_v051']['markets'].index(r['market']))
     failures = []
     for row in candidates:
         row['multi_timeframe'] = {}
