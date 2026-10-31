@@ -49,6 +49,9 @@ jobs:
 
       - name: Calculate V0.5 scores
         run: python scoring_v05.py
+      
+      - name: Track V0.5.1 signal outcomes
+        run: python tracking_v051.py
 
       - name: Save historical state
         if: success()
