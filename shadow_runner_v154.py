@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """Bitvavo V1.5.4 shadow only: live alerts + forward 24h candle-high audit.
 Never sends orders. Persistence is handled by the GitHub Actions data branch.
@@ -62,11 +63,11 @@ def main():
     def scan(market):
         b=bars(market)
         if len(b)<97:return market,[],None,None
-        last=int(b.timestamp_ms.max());floor=int(state['processed_until'].get(market,now-2*3600_000))
+        last=int(b.timestamp_ms.max());floor=int(state['processed_until'].get(market,last))  # Bootstrap: no replay on first run
         # Replay previous 24h of candles to reconstruct rule cooldown, then select only new signals.
         prior=state['last_seen'].get(market,{})
         signals,last_seen=scan_market(b,prior)
-        selected=[x for x in signals if floor<int(x['timestamp_ms'])<=last and now-int(x['timestamp_ms'])<=3*3600_000]
+        selected=[x for x in signals if floor<int(x['timestamp_ms'])<=last]  # Catch up delayed scans within available candle history
         return market,selected,last,last_seen
     with ThreadPoolExecutor(max_workers=max(1,min(a.workers,5))) as pool:
         tasks={pool.submit(scan,m):m for m in universe}
