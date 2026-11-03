@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """Bitvavo V1.5.4 shadow only: live alerts + forward 24h candle-high audit.
 Never sends orders. Persistence is handled by the GitHub Actions data branch.
@@ -63,11 +62,11 @@ def main():
     def scan(market):
         b=bars(market)
         if len(b)<97:return market,[],None,None
-        last=int(b.timestamp_ms.max());floor=int(state['processed_until'].get(market,last))  # Bootstrap: no replay on first run
+        last=int(b.timestamp_ms.max());floor=int(state['processed_until'].get(market,last))
         # Replay previous 24h of candles to reconstruct rule cooldown, then select only new signals.
         prior=state['last_seen'].get(market,{})
         signals,last_seen=scan_market(b,prior)
-        selected=[x for x in signals if floor<int(x['timestamp_ms'])<=last]  # Catch up delayed scans within available candle history
+        selected=[x for x in signals if floor<int(x['timestamp_ms'])<=last]
         return market,selected,last,last_seen
     with ThreadPoolExecutor(max_workers=max(1,min(a.workers,5))) as pool:
         tasks={pool.submit(scan,m):m for m in universe}
@@ -98,7 +97,7 @@ def main():
     temp=historyfile.with_suffix('.tmp');history.to_csv(temp,index=False);temp.replace(historyfile)
     tmp=statefile.with_suffix('.tmp');tmp.write_text(json.dumps(state,indent=2));tmp.replace(statefile)
     counts=history.evaluation_status.value_counts().to_dict() if len(history) else {}
-    summary={'timestamp_utc':dt.datetime.now(dt.timezone.utc).isoformat(),'markets_requested':len(universe),'market_errors':len(errors),'errors':errors[:30],'new_alerts':len(new),'total_alerts':len(history),'evaluation_status':counts,'new_priority_counts':pd.DataFrame(new).get('priority',pd.Series(dtype=str)).value_counts().to_dict() if not new else history.tail(len(new)).priority.value_counts().to_dict()}
+    summary={'timestamp_utc':dt.datetime.now(dt.timezone.utc).isoformat(),'markets_requested':len(universe),'markets_with_data':len(state['processed_until']),'market_errors':len(errors),'errors':errors[:30],'new_alerts':len(new),'total_alerts':len(history),'evaluation_status':counts,'new_priority_counts':frame.priority.value_counts().to_dict() if new else {}}
     report.write_text(json.dumps(summary,indent=2));print(json.dumps(summary,indent=2))
-    if errors:raise SystemExit(2)
+    if errors:print('WARNING: some markets failed; their checkpoints were not advanced; they will be retried next run')
 if __name__=='__main__':main()
