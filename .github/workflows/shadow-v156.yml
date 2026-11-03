@@ -1,0 +1,84 @@
+name: Bitvavo V1.5.6 Prospective Shadow
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "smoke: test 8 markets without writing alerts; live: entire EUR universe (records only within 6h of midnight UTC)"
+        type: choice
+        options:
+          - smoke
+          - live
+        default: smoke
+        required: true
+  schedule:
+    - cron: '17 1 * * *'  # 01:17 UTC daily; strictly after last daily candle closes
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bitvavo-v156-shadow
+  cancel-in-progress: false
+
+jobs:
+  prospective:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned-major analysis deps
+        run: python -m pip install 'numpy>=1.26,<3' 'pandas>=2.1,<3'
+      - name: Restore durable observations (live only)
+        shell: bash
+        env:
+          V156_MODE: ${{ inputs.mode || 'live' }}
+        run: |
+          mkdir -p .shadow_v156
+          if [ "$V156_MODE" = 'live' ] && git ls-remote --exit-code --heads origin shadow-v156-data >/dev/null; then
+            git fetch origin shadow-v156-data
+            git show FETCH_HEAD:observations.csv > .shadow_v156/observations.csv
+          fi
+      - name: Syntax validation
+        run: python -m py_compile shadow_runner_v156.py research_v155.py
+      - name: Scan and evaluate forward-only observations
+        env:
+          V156_MODE: ${{ inputs.mode || 'live' }}
+        run: python shadow_runner_v156.py --mode "$V156_MODE" --workers 3
+      - name: Persist live observations to isolated branch
+        if: success() && (github.event_name == 'schedule' || inputs.mode == 'live')
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s .shadow_v156/observations.csv || { echo 'No observations.csv to persist'; exit 0; }
+          cp .shadow_v156/observations.csv /tmp/bitvavo-v156-observations.csv
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --heads origin shadow-v156-data >/dev/null; then
+            git fetch origin shadow-v156-data
+            git worktree add -B shadow-v156-data /tmp/v156-worktree FETCH_HEAD
+          else
+            git worktree add --detach /tmp/v156-worktree HEAD
+            cd /tmp/v156-worktree
+            git switch --orphan shadow-v156-data
+            git rm -rf --quiet . || true
+            cd "$GITHUB_WORKSPACE"
+          fi
+          cp /tmp/bitvavo-v156-observations.csv /tmp/v156-worktree/observations.csv
+          cd /tmp/v156-worktree
+          git add observations.csv
+          if ! git diff --cached --quiet; then
+            git commit -m "Prospective V1.5.6 observations ($GITHUB_RUN_ID)"
+            git push origin HEAD:shadow-v156-data
+          fi
+      - name: Upload readable report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v156-${{ github.run_number }}
+          path: reports/v156/run_summary.json
+          if-no-files-found: warn
+          retention-days: 90
