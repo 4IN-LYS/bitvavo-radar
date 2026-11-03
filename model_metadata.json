@@ -1,0 +1,28 @@
+{
+  "version": "v1.5",
+  "trained_only_on": "train",
+  "selection_only_on": "validation",
+  "features": [
+    "ret_1h",
+    "ret_4h",
+    "ret_24h",
+    "range_24h",
+    "range_position",
+    "volatility_4h",
+    "volume_ratio_4h",
+    "volume_acceleration",
+    "drawdown_24h",
+    "log_notional_4h"
+  ],
+  "thresholds": {
+    "A": 0.17745794116483204,
+    "B": 0.09125307167005552
+  },
+  "model": "LogisticRegression(C=0.1)",
+  "label": "future 24h high >= next 15m open * 1.10",
+  "training_rows": 4077,
+  "validation_rows": 1939,
+  "model_scores_not_calibrated_probabilities": true,
+  "training_last_timestamp_ms": 1787259600000,
+  "validation_last_timestamp_ms": 1790373600000
+}
