@@ -19,6 +19,16 @@ DAY_MS = 86_400_000
 H4_MS = DAY_MS // 6
 THRESHOLD = -0.10  # strict: at/below -10% over previous 30d -> excluded
 EXCLUDED_BASE_ASSETS = frozenset(('BTC', 'ETH'))
+# Explicit asset symbols; no substring-based blocking (avoids false positives).
+STABLECOIN_BASE_ASSETS = frozenset((
+    'USDT', 'USDC', 'DAI', 'EURC', 'EURI', 'EURCV', 'AEUR',
+    'FDUSD', 'PYUSD', 'RLUSD', 'TUSD', 'USDD', 'USDE', 'USDS',
+    'USD1', 'FRAX', 'SUSD', 'GHO', 'LUSD', 'DOLA',
+))
+# Exploratory late-momentum screening, NOT trained or backtested here.
+ADVANCED_7D = .20
+ADVANCED_30D = .35
+VERY_ADVANCED_30D = .50
 CANDLE_LIMIT = 300  # 50 days of 4h, enough to evaluate 30d as of last 48h
 
 
@@ -86,17 +96,28 @@ def returns_asof(candles, asof_ms):
         return {'error': 'invalid_history'}
 
 
-def classify(market, ret30, stage='', threshold=THRESHOLD):
-    """Qualification for *display only*, not a buy recommendation."""
-    if market.split('-')[0].upper() in EXCLUDED_BASE_ASSETS:
+def classify(market, ret30, stage='', threshold=THRESHOLD, ret7=None):
+    """Display-only eligibility. Never modify original signals or outcome labels.
+
+    A late mover is kept in a *separate* watchlist, never misrepresented as
+    an early pre-breakout. Thresholds are provisional; no claim of edge.
+    """
+    base = market.split('-')[0].upper()
+    if base in EXCLUDED_BASE_ASSETS:
         return 'hors_univers', 'BTC/ETH : références de marché, hors shortlist spéculative'
+    if base in STABLECOIN_BASE_ASSETS:
+        return 'hors_univers', 'Stablecoin connu : hors shortlist de cryptos spéculatives'
     if ret30 is None:
         return 'non_qualifiable', 'Performance 30 jours indisponible ou historique incomplet'
     if ret30 <= threshold:
         return 'exclu_baisse_30j', f'Rendement 30 jours ≤ {threshold:.0%}'
     if stage == 'momentum_avance':
-        return 'exclu_momentum_avance', 'Momentum déjà avancé selon la V1.5.4'
-    return 'a_etudier', 'Passe le filtre 30j, signal non validé et sans garantie de hausse'
+        return 'exclu_momentum_avance', 'Momentum déjà avancé selon la règle de classification existante'
+    if ret30 >= VERY_ADVANCED_30D or (ret7 is not None and ret7 >= ADVANCED_7D and ret30 >= ADVANCED_30D):
+        return 'surveillance_momentum_avance', (
+            'Hausse déjà avancée sur 30j (≥+50%) ou 7j (≥+20%) avec 30j (≥+35%) ; '
+            'à suivre hors shortlist pré-breakout')
+    return 'a_etudier', 'Passe les filtres de tendance, signal non validé et sans garantie de hausse'
 
 
 def v156_candidates(rows, cutoff_ms, threshold=THRESHOLD):
@@ -116,11 +137,12 @@ def v156_candidates(rows, cutoff_ms, threshold=THRESHOLD):
             latest[market] = x
     for market, x in sorted(latest.items()):
         ret30 = float_or_none(x.get('return_30d'))
-        status, reason = classify(market, ret30, x.get('stage', ''), threshold)
+        ret7 = float_or_none(x.get('return_7d'))
+        status, reason = classify(market, ret30, x.get('stage', ''), threshold, ret7)
         out.append({'source': 'v1.5.6', 'market': market, 'status': status,
                     'reason': reason, 'signal_utc': iso_utc(int(x['observed_at_ms'])),
                     'return_1d_pct': None,  # absent from immutable V1.5.6 record
-                    'return_7d_pct': round(100 * float(x['return_7d']), 2),
+                    'return_7d_pct': round(100 * ret7, 2) if ret7 is not None else None,
                     'return_30d_pct': round(100 * ret30, 2) if ret30 is not None else None,
                     'stage': x.get('stage', ''), 'rule': x.get('selected_rules', ''),
                     'priority': '', 'evaluation_status': x.get('status_7d', '')})
@@ -152,7 +174,7 @@ def v154_candidates(rows, cutoff_ms, fetch_fn=get_candles_4h,
         except Exception as exc:
             errors.append({'market': market, 'error': str(exc)})
         ret30 = info.get('return_30d')
-        status, reason = classify(market, ret30, row.get('stage', ''), threshold)
+        status, reason = classify(market, ret30, row.get('stage', ''), threshold, info.get('return_7d'))
         out.append({'source': 'v1.5.4', 'market': market, 'status': status,
                     'reason': reason, 'signal_utc': iso_utc(stamp),
                     'return_1d_pct': round(100 * info['return_1d'], 2) if 'return_1d' in info else None,
@@ -169,19 +191,22 @@ def markdown(report, data):
     lines = [f"# Shortlist Bitvavo expérimentale — {report['generated_at_utc']}", '',
              '**Filtre d’affichage uniquement** : ne change ni les alertes, ni leurs évaluations, ni les règles.',
              f"Baisse 30 jours exclue si ≤ {report['excluded_if_return_30d_lte_pct']} %.",
-             'BTC/ETH hors shortlist. Historique 30j manquant : non qualifiable, jamais accepté par défaut.', '',
+             'BTC/ETH et stablecoins hors shortlist. Historique 30j manquant : non qualifiable, jamais accepté par défaut.',
+             'Momentum déjà avancé : suivi séparé, seuils exploratoires +50%/30j ou (+20%/7j et +35%/30j).', '',
              f"V1.5.6 : {summary['v1.5.6']['a_etudier']} à étudier sur {summary['v1.5.6']['total']} signaux récents.  "
              f"V1.5.4 : {summary['v1.5.4']['a_etudier']} à étudier sur {summary['v1.5.4']['total']} marchés récents.", '',
              '| Radar | Crypto | Verdict | 30j | 7j | 1j | Règle / priorité |',
              '|---|---|---|---:|---:|---:|---|']
     def fmt(v):return 'N/D' if v is None else f'{v:+.2f} %'
-    order = {'a_etudier':0,'exclu_baisse_30j':1,'exclu_momentum_avance':2,'hors_univers':3,'non_qualifiable':4}
+    order = {'a_etudier':0,'surveillance_momentum_avance':1,'exclu_baisse_30j':2,'exclu_momentum_avance':3,'hors_univers':4,'non_qualifiable':5}
     for r in sorted(data, key=lambda x:(order.get(x['status'],9),x['source'],x['market'])):
         rule = (r['rule']+' '+r['priority']).strip()
         lines.append(f"| {r['source']} | {r['market']} | {r['status']} | {fmt(r['return_30d_pct'])} | "
                      f"{fmt(r['return_7d_pct'])} | {fmt(r['return_1d_pct'])} | {rule} |")
     lines.extend(['', '## Limites', '',
                   '- Le seuil −10 % est une hypothèse de sélection, non une règle backtestée hors échantillon.',
+                  '- Les seuils de momentum avancé ne sont pas statistiquement validés ; les actifs concernés sont conservés dans une liste séparée.',
+                  '- Les stablecoins sont exclus par une liste explicite de symboles, potentiellement non exhaustive.',
                   '- Une variation nette 30j ne suffit pas à qualifier toute la structure de la courbe.',
                   '- Le filtre V1.5.4 utilise uniquement les bougies 4h clôturées avant le signal.',
                   '- Chaque radar possède sa temporalité : les lignes ne sont pas directement comparables.',
@@ -200,15 +225,18 @@ def run(args):
     for source in ('v1.5.6', 'v1.5.4'):
         subset = [x for x in combined if x['source']==source]
         by_source[source] = {'total':len(subset)}
-        for state in ('a_etudier','exclu_baisse_30j','exclu_momentum_avance','hors_univers','non_qualifiable'):
+        for state in ('a_etudier','exclu_baisse_30j','exclu_momentum_avance','surveillance_momentum_avance','hors_univers','non_qualifiable'):
             by_source[source][state] = sum(x['status']==state for x in subset)
-    report = {'version':'shortlist-v1.5.7-qualification-0.1',
+    report = {'version':'shortlist-v1.5.7.1-qualification-0.1',
               'generated_at_utc':iso_utc(now_ms),
               'excluded_if_return_30d_lte_pct':round(args.threshold*100,2),
+              'late_momentum_thresholds_pct':{'return_30d':50.0,'return_7d_and_30d':[20.0,35.0]},
+              'stablecoin_symbols_excluded':sorted(STABLECOIN_BASE_ASSETS),
               'summary':by_source,'v154_market_errors':errors,
               'notes':['No backfills, no order placement, no changes to running models.',
                        'V1.5.6 uses stored signal-time 30d returns; V1.5.4 reconstructs signal-time 30d return from closed 4h candles.',
                        'Excluded cases are retained in the source research branches.',
+                       'Stablecoins removed by explicit symbol list; advanced-momentum coins retained in a separate watchlist.',
                        'This is an unvalidated experimental shortlist, not a predictive score.']}
     out=Path(args.output_dir);out.mkdir(parents=True,exist_ok=True)
     (out/'shortlist_summary.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
@@ -216,7 +244,9 @@ def run(args):
     keys=['source','market','status','reason','signal_utc','return_1d_pct','return_7d_pct',
           'return_30d_pct','stage','rule','priority','evaluation_status']
     for name,rows in [('all_qualifications.csv',combined),('shortlist_eligible.csv',
-                    [x for x in combined if x['status']=='a_etudier'])]:
+                    [x for x in combined if x['status']=='a_etudier']),
+                    ('watchlist_momentum_avance.csv',
+                    [x for x in combined if x['status'] in ('surveillance_momentum_avance','exclu_momentum_avance')])]:
         with (out/name).open('w',encoding='utf-8',newline='') as f:
             writer=csv.DictWriter(f,fieldnames=keys);writer.writeheader();writer.writerows(rows)
     print(json.dumps(report,ensure_ascii=False,indent=2))
