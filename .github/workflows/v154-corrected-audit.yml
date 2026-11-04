@@ -1,0 +1,40 @@
+name: Bitvavo V1.5.4 Corrected Forward Audit (read-only)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '57 3 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bitvavo-v154-corrected-forward-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Read existing alerts without modifying them
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p input
+          git fetch origin shadow-v154-data:refs/remotes/origin/shadow-v154-data
+          git show origin/shadow-v154-data:alerts.csv > input/alerts.csv
+      - name: Evaluate only AFTER the actual scored signal time
+        run: python audit_v154_corrected.py --alerts input/alerts.csv
+      - name: Save corrected audit (no changes to radar)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v154-corrected-audit-${{ github.run_number }}
+          path: reports/v154_corrected/
+          if-no-files-found: error
+          retention-days: 60
