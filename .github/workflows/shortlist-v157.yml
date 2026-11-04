@@ -1,0 +1,48 @@
+name: Bitvavo V1.5.7 Shortlist Filter (read-only)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '55 */2 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bitvavo-shortlist-v157
+  cancel-in-progress: false
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Restore immutable live alerts from data branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p input
+          if git ls-remote --heads --exit-code origin shadow-v154-data >/dev/null; then
+            git fetch origin shadow-v154-data:refs/remotes/origin/shadow-v154-data
+            git show origin/shadow-v154-data:alerts.csv > input/alerts.csv
+          fi
+          if git ls-remote --heads --exit-code origin shadow-v156-data >/dev/null; then
+            git fetch origin shadow-v156-data:refs/remotes/origin/shadow-v156-data
+            git show origin/shadow-v156-data:observations.csv > input/observations.csv
+          fi
+      - name: Apply 30-day context to shortlist only
+        run: python radar_shortlist_v157.py --v154 input/alerts.csv --v156 input/observations.csv
+      - name: Upload human-readable shortlist and excluded cases
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-shortlist-v157-${{ github.run_number }}
+          path: reports/shortlist_v157/
+          if-no-files-found: error
+          retention-days: 60
