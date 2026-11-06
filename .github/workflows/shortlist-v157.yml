@@ -1,4 +1,4 @@
-name: Bitvavo V1.5.7 Shortlist Filter (read-only)
+name: Bitvavo V1.5.7 Shortlist + V1.5.8 Verdict History
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
     - cron: '55 */2 * * *'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: bitvavo-shortlist-v157
@@ -38,7 +38,41 @@ jobs:
           fi
       - name: Apply 30-day context to shortlist only
         run: python radar_shortlist_v157.py --v154 input/alerts.csv --v156 input/observations.csv
-      - name: Upload human-readable shortlist and excluded cases
+      - name: Restore verdict history from isolated data branch
+        shell: bash
+        run: |
+          mkdir -p .shortlist_v158
+          if git ls-remote --exit-code --heads origin shortlist-v158-data >/dev/null; then
+            git fetch origin shortlist-v158-data
+            git show FETCH_HEAD:verdicts.csv > .shortlist_v158/verdicts.csv
+          fi
+      - name: Freeze signal-time verdict for every newly seen event
+        run: python archive_verdicts_v158.py --v154 input/alerts.csv --v156 input/observations.csv
+      - name: Persist verdict history separately from models and alerts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .shortlist_v158/verdicts.csv /tmp/bitvavo-verdicts-v158.csv
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --heads origin shortlist-v158-data >/dev/null; then
+            git fetch origin shortlist-v158-data
+            git worktree add --detach /tmp/v158-verdicts-worktree FETCH_HEAD
+          else
+            git worktree add --detach /tmp/v158-verdicts-worktree HEAD
+            cd /tmp/v158-verdicts-worktree
+            git switch --orphan shortlist-v158-data
+            git rm -rf --quiet . || true
+            cd "$GITHUB_WORKSPACE"
+          fi
+          cp /tmp/bitvavo-verdicts-v158.csv /tmp/v158-verdicts-worktree/verdicts.csv
+          cd /tmp/v158-verdicts-worktree
+          git add verdicts.csv
+          if ! git diff --cached --quiet; then
+            git commit -m "Archive frozen signal-time shortlist verdicts ($GITHUB_RUN_ID)"
+            git push origin HEAD:shortlist-v158-data
+          fi
+      - name: Upload human-readable shortlist and archived-verdict summary
         if: always()
         uses: actions/upload-artifact@v4
         with:
