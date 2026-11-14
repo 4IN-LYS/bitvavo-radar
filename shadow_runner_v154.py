@@ -88,7 +88,40 @@ def main():
         history=pd.concat([history,frame],ignore_index=True)
     if len(history):
         history=history.drop_duplicates(subset=['market','timestamp_ms','rule'],keep='first')
-        todo=history.index[(history.evaluation_status!='evaluated') & (pd.to_numeric(history.timestamp_ms)>=0) & (pd.to_numeric(history.timestamp_ms)+97*Q<=now)].tolist()[:a.max_evaluations]
+        
+        # Prioriser les alertes jamais évaluées
+        timestamps = pd.to_numeric(
+            history.timestamp_ms, errors='coerce'
+        )
+        matured = (
+            (timestamps >= 0)
+            & (timestamps + 97 * Q <= now)
+        )
+        pending = history.index[
+            matured & (history.evaluation_status == 'pending')
+        ].tolist()
+        retryable = history.index[
+            matured
+            & ~history.evaluation_status.isin(
+                ['pending', 'evaluated']
+            )
+        ].tolist()
+
+        limit = max(0, a.max_evaluations)
+        todo = pending[:limit]
+        remaining = limit - len(todo)
+
+        if remaining and retryable:
+            cursor = int(
+                state.get('evaluation_retry_cursor', 0)
+            ) % len(retryable)
+            rotated = retryable[cursor:] + retryable[:cursor]
+            chosen = rotated[:remaining]
+            todo.extend(chosen)
+            state['evaluation_retry_cursor'] = (
+                cursor + len(chosen)
+            ) % len(retryable)
+
         for idx in todo:
             row=evaluate(history.loc[idx].to_dict(),now)
             for k,v in row.items():history.at[idx,k]=v
