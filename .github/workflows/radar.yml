@@ -55,6 +55,10 @@ jobs:
       
       - name: Track V0.5.1 signal outcomes
         run: python tracking_v051.py
+      
+      - name: Multi-day trend and continuation overlay (V1.6.0 experimental)
+        continue-on-error: true
+        run: python trend_gate_v160.py
 
       - name: Save historical state
         if: success()
