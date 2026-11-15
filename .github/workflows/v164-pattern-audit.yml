@@ -1,0 +1,66 @@
+
+name: Bitvavo V1.6.4 Pre-Pump Pattern Audit (read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: bitvavo-v164-pattern-audit
+  cancel-in-progress: false
+
+jobs:
+  pattern_audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Restore latest successful V1.6.3 research snapshot
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" \
+            --workflow v163-pump-features.yml --status success \
+            --limit 1 --json databaseId --jq '.[0].databaseId')
+          test -n "$RUN_ID"
+          RUN_NUMBER=$(gh run view "$RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" --json number --jq '.number')
+          mkdir -p input/v163
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "bitvavo-v163-features-$RUN_NUMBER" --dir input/v163
+          test -s input/v163/v163_pump_features.csv
+          test -s input/v163/v163_controls_same_market.csv
+          test -s input/v163/v163_controls_all_market.csv
+
+      - name: Test V1.6.4 pattern audit
+        run: python -m unittest -v test_audit_patterns_v164.py
+
+      - name: Compare fixed patterns and counterexamples
+        run: |
+          python audit_patterns_v164.py \
+            --positive input/v163/v163_pump_features.csv \
+            --same-market input/v163/v163_controls_same_market.csv \
+            --market-day input/v163/v163_controls_all_market.csv \
+            --output-dir reports/v164 \
+            --bootstrap 1000
+
+      - name: Upload V1.6.4 results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v164-pattern-audit-${{ github.run_number }}
+          path: reports/v164/
+          if-no-files-found: warn
+          retention-days: 60
