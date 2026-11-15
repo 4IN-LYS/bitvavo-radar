@@ -245,7 +245,7 @@ def annotate_opportunity(item,signals,lookback_ms):
     seq=signals.get(item['market'],[])
     stamps=[x[0] for x in seq]
     lo=bisect.bisect_left(stamps,t-lookback_ms)
-    hi=bisect.bisect_right(stamps,t)
+    hi=bisect.bisect_left(stamps,t)
     prior=seq[lo:hi]  # never count a signal after anchor
     yes=[x for x in prior if x[2]]
     result={k:item[k] for k in OPPORTUNITY_FIELDS if k in item}
