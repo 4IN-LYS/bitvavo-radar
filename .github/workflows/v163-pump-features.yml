@@ -1,0 +1,63 @@
+
+name: Bitvavo V1.6.3 Pre-Pump Feature Research (read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: bitvavo-v163-pump-features
+  cancel-in-progress: false
+
+jobs:
+  feature_research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download latest successful V1.6.2 research artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" \
+            --workflow v162-pump-research.yml --status success \
+            --limit 1 --json databaseId --jq '.[0].databaseId')
+          test -n "$RUN_ID"
+          RUN_NUMBER=$(gh run view "$RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" --json number --jq '.number')
+          mkdir -p input/v162
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "bitvavo-v162-research-$RUN_NUMBER" --dir input/v162
+          test -s input/v162/v162_opportunities.csv
+          test -s input/v162/v162_summary.json
+
+      - name: Test V1.6.3 time boundaries and controls (offline)
+        run: python -m unittest -v test_research_v163.py
+
+      - name: Compare pre-pump features to non-pump controls (read-only)
+        run: |
+          python research_v163.py \
+            --opportunities input/v162/v162_opportunities.csv \
+            --output-dir reports/v163 \
+            --workers 3
+
+      - name: Upload V1.6.3 exploratory diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v163-features-${{ github.run_number }}
+          path: reports/v163/
+          if-no-files-found: warn
+          retention-days: 60
