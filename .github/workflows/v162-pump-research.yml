@@ -1,0 +1,79 @@
+
+name: Bitvavo V1.6.2 Pump Research (read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: bitvavo-v162-pump-research
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Restore immutable research data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p input
+          git fetch origin shadow-v154-data:refs/remotes/origin/shadow-v154-data
+          git show origin/shadow-v154-data:alerts.csv > input/alerts.csv
+          git fetch origin shadow-v156-data:refs/remotes/origin/shadow-v156-data
+          git show origin/shadow-v156-data:observations.csv > input/observations.csv
+          git fetch origin shortlist-v158-data:refs/remotes/origin/shortlist-v158-data
+          git show origin/shortlist-v158-data:verdicts.csv > input/verdicts.csv
+          test -s input/alerts.csv
+          test -s input/observations.csv
+          test -s input/verdicts.csv
+
+      - name: Download latest successful corrected V1.5.4 audit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" \
+            --workflow v154-corrected-audit.yml --status success \
+            --limit 1 --json databaseId --jq '.[0].databaseId')
+          test -n "$RUN_ID"
+          mkdir -p input/audit
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --dir input/audit
+          test -s input/audit/corrected_evaluations.csv
+
+      - name: Test V1.6.2 without network or hindsight
+        run: python -m unittest -v test_research_v162.py
+
+      - name: Research 24h outcomes and 24h/72h/7d pumps
+        run: |
+          python research_v162.py \
+            --audit input/audit/corrected_evaluations.csv \
+            --verdicts input/verdicts.csv \
+            --alerts input/alerts.csv \
+            --v156 input/observations.csv \
+            --output-dir reports/v162 \
+            --lookback-days 14 \
+            --signal-lookback-hours 24 \
+            --workers 3
+
+      - name: Upload V1.6.2 research output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v162-research-${{ github.run_number }}
+          path: reports/v162/
+          if-no-files-found: warn
+          retention-days: 60
