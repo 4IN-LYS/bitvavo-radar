@@ -38,6 +38,13 @@ jobs:
           fi
       - name: Apply 30-day context to shortlist only
         run: python radar_shortlist_v157.py --v154 input/alerts.csv --v156 input/observations.csv
+
+      - name: Test V1.6.1 multi-day overlay
+        run: python -m unittest test_review_gate_v161.py
+
+      - name: V1.6.1 strict multi-day review overlay (experimental)
+        run: python review_gate_v161.py
+        
       - name: Restore verdict history from isolated data branch
         shell: bash
         run: |
@@ -77,6 +84,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bitvavo-shortlist-v157-${{ github.run_number }}
-          path: reports/shortlist_v157/
+          path: |
+            reports/shortlist_v157/
+            reports/shortlist_v161/
+
           if-no-files-found: error
           retention-days: 60
