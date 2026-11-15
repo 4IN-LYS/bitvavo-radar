@@ -1,0 +1,54 @@
+
+name: Bitvavo V1.6.5 Fast 5m Monitor (read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_markets:
+        description: '0 = all EUR altcoins'
+        type: number
+        required: true
+        default: 0
+  schedule:
+    - cron: '3-58/5 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bitvavo-v165-fast-scan
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Test 5-minute monitoring logic (offline)
+        run: python -m unittest -v test_fast_scan_v165.py
+
+      - name: Scan Bitvavo EUR spot 5-minute closed candles
+        env:
+          MAX_MARKETS: ${{ inputs.max_markets || 0 }}
+        run: |
+          python fast_scan_v165.py \
+            --max-markets "$MAX_MARKETS" \
+            --workers 3 \
+            --context-top-n 25
+
+      - name: Upload candidate shortlist and coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v165-fast-${{ github.run_number }}
+          path: reports/fast_v165/
+          if-no-files-found: warn
+          retention-days: 7
