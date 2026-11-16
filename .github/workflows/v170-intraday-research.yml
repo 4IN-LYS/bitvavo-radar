@@ -1,0 +1,46 @@
+
+name: Bitvavo V1.7.0 Intraday Momentum Research (manual, read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bitvavo-v170-intraday-manual
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Test read-only intraday logic (offline)
+        run: python -m unittest -v test_intraday_v170.py
+
+      - name: Screen rising markets and evaluate 1m candles, trades and book
+        run: |
+          python intraday_v170.py \
+            --min-rise 8 \
+            --min-turnover 100000 \
+            --max-candidates 40 \
+            --include HUMA-EUR CROSS-EUR \
+            --workers 3
+
+      - name: Upload exploratory candidates
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v170-intraday-${{ github.run_number }}
+          path: reports/intraday_v170/
+          if-no-files-found: warn
+          retention-days: 30
