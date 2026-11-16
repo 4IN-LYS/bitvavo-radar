@@ -1,0 +1,45 @@
+name: Bitvavo V1.7.1 Intraday Momentum Research (manual, read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bitvavo-v171-intraday-manual
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run offline tests
+        run: python -m unittest -v test_intraday_v171.py
+
+      - name: Analyze recent Bitvavo EUR momentum
+        run: |
+          python intraday_v171.py \
+            --min-rise 8 \
+            --min-turnover 100000 \
+            --max-candidates 40 \
+            --include HUMA-EUR CROSS-EUR \
+            --workers 3
+
+      - name: Upload V1.7.1 diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v171-intraday-${{ github.run_number }}
+          path: reports/intraday_v171/
+          if-no-files-found: warn
+          retention-days: 30
