@@ -12,6 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from compression_v18 import analyze as analyze_compression
 
 BASE = 'https://api.bitvavo.com/v2'
 HEADERS = {'User-Agent': 'bitvavo-radar/0.2', 'Accept': 'application/json'}
@@ -72,12 +73,13 @@ def scan_one(market):
     rebuilt, observed_count = [], 0
     for ts in range(grid_start, latest_closed_start + 1, hour_ms):
         if ts in observed:
-            row = observed[ts]
-            previous = row['c']
+        row = dict(observed[ts])
+        row['observed'] = True
+        previous = row['c']
             observed_count += 1
         elif previous is not None:
             row = {'t': ts, 'o': previous, 'h': previous, 'l': previous,
-                   'c': previous, 'v': 0.0}
+                   'c': previous, 'v': 0.0, 'observed': False}
         else:
             return {'market': market, 'status': 'INSUFFICIENT_DATA', 'score': None}
         rebuilt.append(row)
@@ -86,6 +88,7 @@ def scan_one(market):
         return {'market': market, 'status': 'THIN_OR_GAPPED_MARKET', 'score': None,
                 'observed_hours_73': observed_count, 'observed_hours_6': recent_observed}
     h = rebuilt
+    compression_v18 = analyze_compression(h)
     price = h[-1]['c']
     v24 = sum(x['v'] for x in h[-24:])
     prev24 = sum(x['v'] for x in h[-48:-24])
@@ -156,6 +159,7 @@ def scan_one(market):
         'previous_24h_high_eur': prior24high, 'previous_24h_low_eur': prior24low,
         'previous_7d_high_eur': prior7high, 'previous_30d_high_eur': prior30high,
         'compression_ratio_7d_30d': compression_ratio,
+        'compression_v18': compression_v18,
         'reasons': reasons,
         'limitations': ['No verified catalyst or unlock data', 'Turnover is not order-book depth',
                         'No live spread check', 'No automated trade recommendation']
