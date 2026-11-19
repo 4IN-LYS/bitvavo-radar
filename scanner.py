@@ -71,22 +71,24 @@ def scan_one(market):
     preceding = [x for x in h if x['t'] < grid_start]
     previous = preceding[-1]['c'] if preceding else None
     rebuilt, observed_count = [], 0
-for ts in range(grid_start, latest_closed_start + 1, hour_ms):
-    if ts in observed:
-        row = dict(observed[ts])
-        row['observed'] = True
-        previous = row['c']
-        observed_count += 1
-    elif previous is not None:
-        row = {'t': ts, 'o': previous, 'h': previous, 'l': previous,
-               'c': previous, 'v': 0.0, 'observed': False}
-    else:
-        return {'market': market, 'status': 'INSUFFICIENT_DATA', 'score': None}
-    rebuilt.append(row)
+    for ts in range(grid_start, latest_closed_start + 1, hour_ms):
+        if ts in observed:
+            row = dict(observed[ts])
+            row['observed'] = True
+            previous = row['c']
+            observed_count += 1
+        elif previous is not None:
+            row = {'t': ts, 'o': previous, 'h': previous, 'l': previous,
+                   'c': previous, 'v': 0.0, 'observed': False}
+        else:
+            return {'market': market, 'status': 'INSUFFICIENT_DATA', 'score': None}
+        rebuilt.append(row)
+
     recent_observed = sum(x['t'] in observed for x in rebuilt[-6:])
     if observed_count < 36 or recent_observed < 4:
         return {'market': market, 'status': 'THIN_OR_GAPPED_MARKET', 'score': None,
                 'observed_hours_73': observed_count, 'observed_hours_6': recent_observed}
+
     h = rebuilt
     compression_v18 = analyze_compression(h)
     price = h[-1]['c']
