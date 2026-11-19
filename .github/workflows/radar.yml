@@ -38,6 +38,9 @@ jobs:
           restore-keys: |
             bitvavo-state-
 
+      - name: Test V1.8 compression module
+        run: python -m unittest -v test_compression_v18.py
+
       - name: Run Bitvavo scanner
         run: python scanner.py
 
