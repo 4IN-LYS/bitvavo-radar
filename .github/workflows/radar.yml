@@ -1,4 +1,3 @@
-
 name: Bitvavo Radar
 
 on:
@@ -41,12 +40,16 @@ jobs:
       - name: Test V1.8 compression module
         run: python -m unittest -v test_compression_v18.py
 
+      - name: Test V1.8 non-veto review rules (offline)
+        continue-on-error: true
+        run: python -m unittest -v test_review_v180.py
+
       - name: Run Bitvavo scanner
         run: python scanner.py
 
       - name: Check liquidity and track outcomes
         run: python enrich.py
-        
+
       - name: Analyze multiple timeframes
         run: python multitimeframe.py
 
@@ -55,13 +58,17 @@ jobs:
 
       - name: Analyze V0.6 price structure
         run: python structure_v06.py
-      
+
       - name: Track V0.5.1 signal outcomes
         run: python tracking_v051.py
-      
-      - name: Multi-day trend and continuation overlay (V1.6.0 experimental)
+
+      - name: Multi-day trend and continuation overlay (V1.6.0 LEGACY reference)
         continue-on-error: true
         run: python trend_gate_v160.py
+
+      - name: V1.8 primary research shortlist (7d/30d context, not veto)
+        continue-on-error: true
+        run: python review_v180.py --mode scanner --output-dir reports
 
       - name: Save historical state
         if: success()
