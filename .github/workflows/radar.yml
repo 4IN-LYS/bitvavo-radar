@@ -44,6 +44,9 @@ jobs:
         continue-on-error: true
         run: python -m unittest -v test_review_v180.py
 
+      - name: Test V1.9 multiday compression (offline)
+        run: python -m unittest -v test_compression_multiday_v19.py        
+
       - name: Run Bitvavo scanner
         run: python scanner.py
 
@@ -69,6 +72,9 @@ jobs:
       - name: V1.8 primary research shortlist (7d/30d context, not veto)
         continue-on-error: true
         run: python review_v180.py --mode scanner --output-dir reports
+
+      - name: Export V1.9 multiday compression watchlist
+        run: python compression_multiday_report_v19.py        
 
       - name: Save historical state
         if: success()
