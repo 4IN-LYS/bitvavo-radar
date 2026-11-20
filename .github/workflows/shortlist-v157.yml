@@ -36,15 +36,26 @@ jobs:
             git fetch origin shadow-v156-data:refs/remotes/origin/shadow-v156-data
             git show origin/shadow-v156-data:observations.csv > input/observations.csv
           fi
-      - name: Apply 30-day context to shortlist only
+      - name: Apply 30-day context to shortlist only (V1.5.7 legacy source)
         run: python radar_shortlist_v157.py --v154 input/alerts.csv --v156 input/observations.csv
+
+      - name: Test V1.8 non-veto review rules (offline)
+        continue-on-error: true
+        run: python -m unittest -v test_review_v180.py
+
+      - name: V1.8 recover source signals hidden by negative multi-day returns
+        continue-on-error: true
+        run: |
+          python review_v180.py --mode shortlist \
+            --input reports/shortlist_v157/all_qualifications.csv \
+            --output-dir reports/shortlist_v180
 
       - name: Test V1.6.1 multi-day overlay
         run: python -m unittest test_review_gate_v161.py
 
-      - name: V1.6.1 strict multi-day review overlay (experimental)
+      - name: V1.6.1 strict multi-day review overlay (LEGACY reference)
         run: python review_gate_v161.py
-        
+
       - name: Restore verdict history from isolated data branch
         shell: bash
         run: |
@@ -87,6 +98,6 @@ jobs:
           path: |
             reports/shortlist_v157/
             reports/shortlist_v161/
-
+            reports/shortlist_v180/
           if-no-files-found: error
           retention-days: 60
