@@ -13,6 +13,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 from compression_v18 import analyze as analyze_compression
+from compression_multiday_v19 import analyze as analyze_multiday
 
 BASE = 'https://api.bitvavo.com/v2'
 HEADERS = {'User-Agent': 'bitvavo-radar/0.2', 'Accept': 'application/json'}
@@ -57,7 +58,8 @@ def pct(new, old):
 def scan_one(market):
     now_ms = int(time.time() * 1000)
     # Closed candles only: avoids misleading partial-hour volume and breakouts.
-    h = [x for x in candles(market, '1h', 100) if x['t'] + 3600000 <= now_ms]
+    h = [x for x in candles(market, '1h', 400) if x['t'] + 3600000 <= now_ms]
+    raw_hourly_for_v19 = h
     d = [x for x in candles(market, '1d', 55) if x['t'] + 86400000 <= now_ms]
     if len(d) < 32 or len(h) < 2:
         return {'market': market, 'status': 'INSUFFICIENT_DATA', 'score': None}
@@ -91,6 +93,7 @@ def scan_one(market):
 
     h = rebuilt
     compression_v18 = analyze_compression(h)
+    compression_v19 = analyze_multiday(raw_hourly_for_v19, d, now_ms=now_ms)
     price = h[-1]['c']
     v24 = sum(x['v'] for x in h[-24:])
     prev24 = sum(x['v'] for x in h[-48:-24])
@@ -162,6 +165,7 @@ def scan_one(market):
         'previous_7d_high_eur': prior7high, 'previous_30d_high_eur': prior30high,
         'compression_ratio_7d_30d': compression_ratio,
         'compression_v18': compression_v18,
+        'compression_v19': compression_v19,
         'reasons': reasons,
         'limitations': ['No verified catalyst or unlock data', 'Turnover is not order-book depth',
                         'No live spread check', 'No automated trade recommendation']
