@@ -1,0 +1,97 @@
+name: Bitvavo V1.9.3 Sparse Market Liquidity Audit (read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      v192_run_id:
+        description: 'V1.9.2 successful run ID; blank = latest successful'
+        required: false
+        type: string
+      max_markets:
+        description: 'Number of UNKNOWN_DATA markets to examine (max recommended 48)'
+        required: false
+        default: '48'
+        type: string
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: bitvavo-v193-sparse-research
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Offline tests
+        run: python -m unittest -v test_sparse_liquidity_v193.py
+      - name: Fetch latest V1.9.2 UNKNOWN_DATA universe
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REQUESTED_RUN: ${{ inputs.v192_run_id }}
+        run: |
+          set -euo pipefail
+          id="$REQUESTED_RUN"
+          if [ -z "$id" ]; then
+            id="$(gh run list -R "$REPO" --workflow v192-volume-precursor.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          fi
+          test -n "$id"
+          conclusion="$(gh api "repos/$REPO/actions/runs/$id" --jq '.conclusion')"
+          test "$conclusion" = success
+          number="$(gh api "repos/$REPO/actions/runs/$id" --jq '.run_number')"
+          mkdir -p inputs/v192
+          gh run download "$id" -R "$REPO" -n "bitvavo-v192-$number" -D inputs/v192
+          test -s inputs/v192/all_markets.csv
+          echo "PARENT_V192=$id" >> "$GITHUB_ENV"
+      - name: Audit sparse closed candles and actual public order-book depth
+        env:
+          MAX_MARKETS: ${{ inputs.max_markets || '48' }}
+        run: |
+          python sparse_liquidity_v193.py \
+            --source inputs/v192/all_markets.csv \
+            --output-dir reports/v193 \
+            --max-markets "$MAX_MARKETS" \
+            --workers 3 --taker-fee 0.0025
+      - name: Append run-specific evidence on isolated branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --heads origin v193-sparse-data >/dev/null; then
+            git fetch origin v193-sparse-data
+            git worktree add --detach /tmp/v193-history FETCH_HEAD
+          else
+            git worktree add --detach /tmp/v193-history HEAD
+            (cd /tmp/v193-history && git switch --orphan v193-sparse-data)
+          fi
+          day="$(date -u +%Y-%m-%d)"
+          dest="/tmp/v193-history/snapshots/$day"
+          mkdir -p "$dest"
+          cp reports/v193/summary.json "$dest/v193-${GITHUB_RUN_ID}.json"
+          gzip -c reports/v193/all_markets.csv > "$dest/v193-${GITHUB_RUN_ID}.csv.gz"
+          cd /tmp/v193-history
+          git add snapshots
+          if ! git diff --cached --quiet; then
+            git commit -m "Append V1.9.3 sparse liquidity audit ${GITHUB_RUN_ID}"
+            git push origin HEAD:v193-sparse-data
+          fi
+      - name: Upload audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v193-${{ github.run_number }}
+          path: reports/v193/
+          retention-days: 90
+          if-no-files-found: warn
