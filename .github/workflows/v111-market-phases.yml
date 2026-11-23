@@ -37,6 +37,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          run="$USER_V1101_RUN"
+          if [ -z "$run" ]; then
+            run="$(gh run list -R "$REPO" --workflow v1101-synchronization.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          fi
+          test -n "$run"
+          gh api "repos/$REPO/actions/runs/$run" --jq '.conclusion' | grep -qx success
+          number="$(gh api "repos/$REPO/actions/runs/$run" --jq '.run_number')"
+          mkdir -p inputs/audit inputs/volume
+          gh run download "$run" -R "$REPO" -n "bitvavo-v1101-$number" -D inputs/audit
+          test -s inputs/audit/summary.json
+          test -s inputs/audit/all_markets.csv
+          export SCAN_TIME="$(python - <<'PY'
+          import json
+          print(json.load(open('inputs/audit/summary.json'))['parent_scan_utc'])
+          PY
+          )"
+          echo "SOURCE_AUDIT_RUN=$run" >> "$GITHUB_ENV"
+          # Prefer an exact 1.9.2 source scan. No nearest-time joining.
+          matched=0
+          while read -r id number; do
+            rm -rf inputs/volume_candidate
+            mkdir -p inputs/volume_candidate
+            if gh run download "$id" -R "$REPO" -n "bitvavo-v192-$number" -D inputs/volume_candidate >/dev/null 2>&1; then
+              if SCAN_TIME="$SCAN_TIME" python - <<'PY'
+          import datetime as dt,json,os
           def stamp(s):return dt.datetime.fromisoformat(s.replace('Z','+00:00')).astimezone(dt.timezone.utc)
           volume=json.load(open('inputs/volume_candidate/summary.json'))
           raise SystemExit(0 if stamp(volume['source_scan_utc'])==stamp(os.environ['SCAN_TIME']) else 1)
