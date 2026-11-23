@@ -1,0 +1,132 @@
+name: Bitvavo V1.10.1 Evidence Synchronization (read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      v110_run_id:
+        description: 'Successful V1.10 run ID (blank = newest successful)'
+        required: false
+        type: string
+  # A -> B -> C -> D cannot reliably use workflow_run chaining on GitHub.
+  # Scheduled independent audit reads an already completed V1.10 run.
+  schedule:
+    - cron: '53 */2 * * *'
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: bitvavo-v1101-synchronization
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test V1.10.1 (offline)
+        run: python -m unittest -v test_reconcile_v1101.py
+      - name: Retrieve exact V1.10 and V1.9.2 pair, then matching V1.9.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          INPUT_RUN_ID: ${{ inputs.v110_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run="$INPUT_RUN_ID"
+          if [ -z "$run" ]; then
+            run="$(gh run list -R "$REPO" --workflow v110-buyer-pressure.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          fi
+          test -n "$run"
+          gh api "repos/$REPO/actions/runs/$run" --jq '.conclusion' | grep -qx success
+          v110_number="$(gh api "repos/$REPO/actions/runs/$run" --jq '.run_number')"
+          mkdir -p inputs/v110 inputs/v192 inputs/v191
+          gh run download "$run" -R "$REPO" -n "bitvavo-v110-$v110_number" -D inputs/v110
+          # The V1.10 archive filename links the V1.10 run to its EXACT V1.9.2 parent.
+          gh api "repos/$REPO/git/trees/v110-pressure-data?recursive=1" > /tmp/v110tree.json
+          export V110_ID="$run"
+          v192="$(python - <<'PY'
+          import json,os,re
+          items=json.load(open('/tmp/v110tree.json'))['tree']
+          ids=set()
+          for r in items:
+              m=re.search(r'/v192-(\d+)-v110-'+re.escape(os.environ['V110_ID'])+r'\.json$',r['path'])
+              if m:ids.add(m.group(1))
+          if len(ids)!=1:raise SystemExit('Expected exactly one archived V1.9.2 parent for this V1.10 run')
+          print(ids.pop())
+          PY
+          )"
+          gh api "repos/$REPO/actions/runs/$v192" --jq '.conclusion' | grep -qx success
+          v192_number="$(gh api "repos/$REPO/actions/runs/$v192" --jq '.run_number')"
+          gh run download "$v192" -R "$REPO" -n "bitvavo-v192-$v192_number" -D inputs/v192
+          # Match by original scanner timestamp, NOT nearest run creation time.
+          found=0
+          while read -r id num; do
+            if [ -z "$id" ]; then continue; fi
+            mkdir -p "inputs/v191_candidate"
+            if gh run download "$id" -R "$REPO" -n "bitvavo-v191-$num" -D inputs/v191_candidate >/dev/null 2>&1; then
+              if python - <<'PY'
+          import json
+          a=json.load(open('inputs/v191_candidate/summary.json'))
+          b=json.load(open('inputs/v192/summary.json'))
+          raise SystemExit(0 if a.get('source_scan_generated_at_utc')==b.get('source_scan_utc') else 1)
+          PY
+              then
+                cp inputs/v191_candidate/summary.json inputs/v191/summary.json
+                cp inputs/v191_candidate/all.csv inputs/v191/all.csv
+                found=1
+                break
+              fi
+            fi
+            rm -rf inputs/v191_candidate
+          done < <(gh run list -R "$REPO" --workflow v191-short-compression-research.yml --status success --limit 18 --json databaseId,number --jq '.[]|[.databaseId,.number]|@tsv')
+          if [ "$found" != 1 ]; then echo 'No V1.9.1 artifact for the EXACT source scan; refusing mismatched join'; exit 1; fi
+          echo "PARENT_V110=$run" >> "$GITHUB_ENV"
+          echo "PARENT_V192=$v192" >> "$GITHUB_ENV"
+      - name: Read older flow observations for persistence checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin v110-pressure-data
+          git worktree add --detach /tmp/v110-history FETCH_HEAD
+          python - <<'PY'
+          import csv,gzip,pathlib
+          files=sorted(pathlib.Path('/tmp/v110-history/snapshots').glob('*/*.csv.gz'))[-35:]
+          rows=[]
+          for p in files:
+              try:
+                  with gzip.open(p,'rt',encoding='utf-8-sig',newline='') as f:
+                      rows.extend(csv.DictReader(f))
+              except (OSError,UnicodeError) as e:
+                  raise SystemExit(f'Archived flow file damaged: {p}: {e}')
+          with open('inputs/flow_history.csv','w',encoding='utf-8',newline='') as f:
+              cols=['market','observed_at_utc','trade_coverage','taker_buy_share','status']
+              w=csv.DictWriter(f,fieldnames=cols,extrasaction='ignore');w.writeheader();w.writerows(rows)
+          print('Loaded',len(rows),'prior/current observations from',len(files),'archived files')
+          PY
+      - name: Reconcile timestamps, coverage and flow persistence
+        run: |
+          python reconcile_v1101.py \
+            --v191-summary inputs/v191/summary.json --v191-csv inputs/v191/all.csv \
+            --v192-summary inputs/v192/summary.json --v192-csv inputs/v192/all_markets.csv \
+            --v110-summary inputs/v110/summary.json --v110-csv inputs/v110/flow_all.csv \
+            --history-csv inputs/flow_history.csv \
+            --output-dir reports/reconcile_v1101
+      - name: Upload V1.10.1 audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v1101-${{ github.run_number }}
+          path: reports/reconcile_v1101/
+          retention-days: 90
+          if-no-files-found: warn
