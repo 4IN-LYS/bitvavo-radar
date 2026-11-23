@@ -1,0 +1,23 @@
+{
+  "version": "v1.10.0-aggressor-and-book-research",
+  "observed_at_utc": "2026-11-23T21:07:08+00:00",
+  "source_file": "all_markets.csv",
+  "markets_in_source": 402,
+  "markets_selected": 24,
+  "markets_analyzed": 24,
+  "api_errors": {},
+  "status_counts": {
+    "MIXED_FLOW": 6,
+    "BUY_PRESSURE_CONFIRMED_RESEARCH": 7,
+    "FLOW_INSUFFICIENT": 6,
+    "FLOW_OBSERVED_BOOK_RISK": 1,
+    "SELL_PRESSURE_OBSERVED": 4
+  },
+  "warnings": [
+    "Order-book is observed at collection time, NOT at historical compression signal time",
+    "Only markets selected from V1.9.2 plus limited controls are inspected",
+    "High taker buy share can be absorbed by sellers and does not imply a pump",
+    "A past signal must not be treated as live when its context is stale",
+    "No fills, slippage, fees, catalyst checks or forward edge established"
+  ]
+}
