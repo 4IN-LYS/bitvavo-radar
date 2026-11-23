@@ -1,0 +1,73 @@
+name: Bitvavo V1.9.1 Short Compression Research (read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      radar_run_id:
+        description: "Completed Bitvavo Radar run ID (optional; default latest successful)"
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["Bitvavo Radar"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: bitvavo-v191-short-compression
+  cancel-in-progress: false
+
+jobs:
+  research:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test V1.9.1 logic offline
+        run: python -m unittest -v test_compression_short_v191.py
+      - name: Fetch the exact parent scan artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          PARENT_ID: ${{ github.event.workflow_run.id }}
+          PARENT_NUMBER: ${{ github.event.workflow_run.run_number }}
+          INPUT_RUN_ID: ${{ inputs.radar_run_id }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = workflow_run ]; then
+            id="$PARENT_ID"
+            number="$PARENT_NUMBER"
+          else
+            id="$INPUT_RUN_ID"
+            if [ -z "$id" ]; then
+              id="$(gh run list -R "$REPO" --workflow radar.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+            fi
+            number="$(gh api "repos/$REPO/actions/runs/$id" --jq '.run_number')"
+          fi
+          test -n "$id"
+          mkdir -p scan_artifact
+          gh run download "$id" -R "$REPO" -n "bitvavo-scan-$number" -D scan_artifact
+          find scan_artifact -name latest.json -print
+          candidate="$(find scan_artifact -name latest.json -type f | head -1)"
+          test -n "$candidate"
+          mkdir -p reports
+          cp "$candidate" reports/latest.json
+      - name: Evaluate short compressions without rewriting legacy radar
+        run: python compression_short_v191.py --source reports/latest.json --output-dir reports/compression_v191 --workers 3
+      - name: Upload V1.9.1 classification and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v191-${{ github.run_number }}
+          path: reports/compression_v191/
+          retention-days: 90
+          if-no-files-found: warn
