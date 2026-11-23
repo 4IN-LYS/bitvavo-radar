@@ -1,0 +1,86 @@
+name: Bitvavo V1.12 Prospective Outcomes (read-only)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 */2 * * *'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: bitvavo-v112-outcome-history
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Offline tests for chronological, missing-data and control safeguards
+        run: python -m unittest -v test_forward_v112.py
+
+      - name: Fetch immutable historical phase observations
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin v111-phase-data
+          git worktree add --detach /tmp/v112-v111-history FETCH_HEAD
+          mkdir -p inputs/v111_history
+          cp -R /tmp/v112-v111-history/snapshots inputs/v111_history/
+          test -n "$(find inputs/v111_history/snapshots -name 'scan-*.json' -print -quit)"
+
+      - name: Measure only elapsed 1h, 4h, 12h, 24h forward returns
+        run: |
+          python forward_v112.py \
+            --snapshot-root inputs/v111_history \
+            --output-dir reports/v112 \
+            --max-cohorts 13 --workers 3 --cost-bps 60
+
+      - name: Archive append-only forward observations on separate branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          if git ls-remote --exit-code --heads origin v112-outcomes-data >/dev/null; then
+            git fetch origin v112-outcomes-data
+            git worktree add --detach /tmp/v112-archive FETCH_HEAD
+          else
+            git worktree add --detach /tmp/v112-archive HEAD
+            (cd /tmp/v112-archive && git switch --orphan v112-outcomes-data)
+          fi
+
+          day="$(date -u +%Y-%m-%d)"
+          dest="/tmp/v112-archive/snapshots/$day"
+          mkdir -p "$dest"
+
+          # Append-only by evaluation run ID; no mutation of pre-signal features.
+          if [ ! -e "$dest/v112-${GITHUB_RUN_ID}.json" ]; then
+            cp reports/v112/summary.json "$dest/v112-${GITHUB_RUN_ID}.json"
+            gzip -c reports/v112/all_outcomes.csv > "$dest/v112-${GITHUB_RUN_ID}.csv.gz"
+          fi
+
+          cd /tmp/v112-archive
+          git add snapshots
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Append V1.12 forward measurements from run ${GITHUB_RUN_ID}"
+            git push origin HEAD:v112-outcomes-data
+          fi
+
+      - name: Upload V1.12 outcomes and research diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v112-${{ github.run_number }}
+          path: reports/v112/
+          retention-days: 90
+          if-no-files-found: warn
