@@ -1,0 +1,117 @@
+name: Bitvavo V1.9.2 Early Volume Precursors (read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      radar_run_id:
+        description: 'Successful parent Bitvavo Radar run ID (optional, latest success if empty)'
+        required: false
+        type: string
+  workflow_run:
+    workflows: ['Bitvavo Radar']
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: bitvavo-v192-archive
+  cancel-in-progress: false
+
+jobs:
+  research:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Unit tests (no API or trading)
+        run: python -m unittest -v test_volume_precursor_v192.py
+      - name: Fetch exact main radar report (never future scan)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          PARENT_ID: ${{ github.event.workflow_run.id }}
+          PARENT_NUMBER: ${{ github.event.workflow_run.run_number }}
+          INPUT_RUN_ID: ${{ inputs.radar_run_id }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = 'workflow_run' ]; then
+            id="$PARENT_ID"
+            number="$PARENT_NUMBER"
+          else
+            id="$INPUT_RUN_ID"
+            if [ -z "$id" ]; then
+              id="$(gh run list -R "$REPO" --workflow radar.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+            fi
+            number="$(gh api "repos/$REPO/actions/runs/$id" --jq '.run_number')"
+          fi
+          test -n "$id"
+          mkdir -p scan_artifact reports
+          gh run download "$id" -R "$REPO" -n "bitvavo-scan-$number" -D scan_artifact
+          candidate="$(find scan_artifact -type f -name latest.json | head -1)"
+          test -n "$candidate"
+          cp "$candidate" reports/latest.json
+          echo "PARENT_RUN_ID=$id" >> "$GITHUB_ENV"
+      - name: Screen all scored EUR altcoins on CLOSED 5m candles
+        run: |
+          python volume_precursor_v192.py \
+            --source reports/latest.json \
+            --short-source reports/compression_v191/summary.json \
+            --output-dir reports/compression_v192 --workers 3
+      - name: Persist immutable research snapshots on isolated branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv,gzip,json,pathlib,os
+          p=pathlib.Path('reports/compression_v192')
+          summary=json.loads((p/'summary.json').read_text())
+          day=summary['source_scan_utc'][:10]
+          dest=pathlib.Path('/tmp/v192-new')/day
+          dest.mkdir(parents=True,exist_ok=True)
+          prefix=f'radar-{os.environ["PARENT_RUN_ID"]}'
+          (dest/(prefix+'.json')).write_text(json.dumps(summary,indent=2,ensure_ascii=False)+'\n')
+          with (p/'all_markets.csv').open('rb') as src, gzip.open(dest/(prefix+'.csv.gz'),'wb',compresslevel=6) as out:
+              out.write(src.read())
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --heads origin v192-volume-data >/dev/null; then
+            git fetch origin v192-volume-data
+            git worktree add --detach /tmp/v192-archive FETCH_HEAD
+          else
+            git worktree add --detach /tmp/v192-archive HEAD
+            ( cd /tmp/v192-archive && git switch --orphan v192-volume-data && git rm -rf --quiet . )
+          fi
+          mkdir -p /tmp/v192-archive/snapshots
+          # Never overwrite an earlier observation for the same parent scan.
+          # Keep the day/run in the path to preserve repeated scan IDs across dates.
+          for file in /tmp/v192-new/*/*; do
+            day="$(basename "$(dirname "$file")")"
+            mkdir -p "/tmp/v192-archive/snapshots/$day"
+            if [ ! -e "/tmp/v192-archive/snapshots/$day/$(basename "$file")" ]; then
+              cp "$file" "/tmp/v192-archive/snapshots/$day/"
+            fi
+          done
+          cd /tmp/v192-archive
+          git add snapshots
+          if ! git diff --cached --quiet; then
+            git commit -m "Archive V1.9.2 volume snapshot from radar $PARENT_RUN_ID"
+            git push origin HEAD:v192-volume-data
+          fi
+      - name: Upload research output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v192-${{ github.run_number }}
+          path: reports/compression_v192/
+          retention-days: 90
+          if-no-files-found: warn
