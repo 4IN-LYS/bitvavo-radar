@@ -1,0 +1,100 @@
+name: Bitvavo V1.10 Buyer Pressure (read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      v192_run_id:
+        description: 'Successful V1.9.2 run ID (optional, latest successful if empty)'
+        required: false
+        type: string
+  workflow_run:
+    workflows: ['Bitvavo V1.9.2 Early Volume Precursors (read-only)']
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: bitvavo-v110-buyer-pressure
+  cancel-in-progress: false
+
+jobs:
+  research:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test V1.10 offline
+        run: python -m unittest -q test_buyer_pressure_v110.py
+      - name: Retrieve exact V1.9.2 parent artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          TRIGGER_RUN: ${{ github.event.workflow_run.id }}
+          INPUT_RUN: ${{ inputs.v192_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = workflow_run ]; then
+            id="$TRIGGER_RUN"
+          else
+            id="$INPUT_RUN"
+            if [ -z "$id" ]; then
+              id="$(gh run list -R "$REPO" --workflow v192-volume-precursor.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+            fi
+          fi
+          test -n "$id"
+          gh api "repos/$REPO/actions/runs/$id" --jq '.conclusion' | grep -qx success
+          number="$(gh api "repos/$REPO/actions/runs/$id" --jq '.run_number')"
+          mkdir -p parent_artifact reports/compression_v192
+          gh run download "$id" -R "$REPO" -n "bitvavo-v192-$number" -D parent_artifact
+          file="$(find parent_artifact -name all_markets.csv -type f | head -1)"
+          test -n "$file"
+          cp "$file" reports/compression_v192/all_markets.csv
+          echo "V192_RUN_ID=$id" >> "$GITHUB_ENV"
+      - name: Measure current real taker flow and order book
+        run: |
+          python buyer_pressure_v110.py \
+            --source reports/compression_v192/all_markets.csv \
+            --output-dir reports/flow_v110 --max-markets 24 --workers 3
+      - name: Archive first-seen snapshots (separate data branch)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          day="$(date -u +%Y-%m-%d)"
+          mkdir -p "/tmp/v110-new/$day"
+          cp reports/flow_v110/summary.json "/tmp/v110-new/$day/v192-${V192_RUN_ID}-v110-${GITHUB_RUN_ID}.json"
+          gzip -c reports/flow_v110/flow_all.csv > "/tmp/v110-new/$day/v192-${V192_RUN_ID}-v110-${GITHUB_RUN_ID}.csv.gz"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --heads origin v110-pressure-data >/dev/null; then
+            git fetch origin v110-pressure-data
+            git worktree add --detach /tmp/v110-worktree FETCH_HEAD
+          else
+            git worktree add --detach /tmp/v110-worktree HEAD
+            ( cd /tmp/v110-worktree && git switch --orphan v110-pressure-data )
+          fi
+          mkdir -p "/tmp/v110-worktree/snapshots/$day"
+          cp -n "/tmp/v110-new/$day/"* "/tmp/v110-worktree/snapshots/$day/"
+          cd /tmp/v110-worktree
+          git add snapshots
+          if ! git diff --cached --quiet; then
+            git commit -m "Archive V1.10 observed flow from V1.9.2 run $V192_RUN_ID"
+            git push origin HEAD:v110-pressure-data
+          fi
+      - name: Upload V1.10 research reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitvavo-v110-${{ github.run_number }}
+          path: reports/flow_v110/
+          retention-days: 90
+          if-no-files-found: warn
