@@ -89,7 +89,7 @@ jobs:
             git worktree add --detach /tmp/v192-archive FETCH_HEAD
           else
             git worktree add --detach /tmp/v192-archive HEAD
-            ( cd /tmp/v192-archive && git switch --orphan v192-volume-data && git rm -rf --quiet . )
+            ( cd /tmp/v192-archive && git switch --orphan v192-volume-data )
           fi
           mkdir -p /tmp/v192-archive/snapshots
           # Never overwrite an earlier observation for the same parent scan.
