@@ -1,3 +1,42 @@
+name: Bitvavo V1.11 Market Phase Research (read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      v1101_run_id:
+        description: 'Successful V1.10.1 run ID; blank = newest successful'
+        required: false
+        type: string
+  schedule:
+    - cron: '23 */2 * * *'
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: bitvavo-v111-market-phase-archive
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test phase engine with offline fixtures
+        run: python -m unittest -v test_phase_engine_v111.py
+      - name: Fetch exact synchronized audit and matching historical-volume artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          USER_V1101_RUN: ${{ inputs.v1101_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
           def stamp(s):return dt.datetime.fromisoformat(s.replace('Z','+00:00')).astimezone(dt.timezone.utc)
           volume=json.load(open('inputs/volume_candidate/summary.json'))
           raise SystemExit(0 if stamp(volume['source_scan_utc'])==stamp(os.environ['SCAN_TIME']) else 1)
