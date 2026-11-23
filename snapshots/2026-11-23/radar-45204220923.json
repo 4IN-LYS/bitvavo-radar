@@ -1,0 +1,29 @@
+{
+  "version": "v1.9.2-volume-precursor-experimental",
+  "source_scan_utc": "2026-11-23T15:22:21+00:00",
+  "observed_at_utc": "2026-11-23T15:25:24.989000+00:00",
+  "markets_requested": 409,
+  "markets_analyzed": 409,
+  "api_errors": {},
+  "status_counts": {
+    "UNKNOWN_DATA": 245,
+    "NO_EARLY_VOLUME_ANOMALY": 124,
+    "THIN_OR_UNKNOWN_TURNOVER": 18,
+    "LOW_15M_EUR_VOLUME": 9,
+    "VOLUME_SPIKE_UNCONFIRMED": 2,
+    "PRICE_ALREADY_EXTENDED": 4,
+    "PRICE_STABLE_VOLUME_SURGE": 7
+  },
+  "selected_markets": [
+    "COTI-EUR",
+    "ENS-EUR",
+    "GWEI-EUR",
+    "JASMY-EUR",
+    "LUNA-EUR",
+    "POL-EUR",
+    "SYRUP-EUR",
+    "TIA-EUR",
+    "TRX-EUR"
+  ],
+  "warning": "No buy signal. Volume is unsigned OHLCV; taker buy/sell pressure unknown. No forward validation."
+}
