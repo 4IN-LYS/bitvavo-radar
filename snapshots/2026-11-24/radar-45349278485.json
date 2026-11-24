@@ -1,0 +1,29 @@
+{
+  "version": "v1.9.2-volume-precursor-experimental",
+  "source_scan_utc": "2026-11-24T07:37:52+00:00",
+  "observed_at_utc": "2026-11-24T07:41:17.216000+00:00",
+  "markets_requested": 393,
+  "markets_analyzed": 393,
+  "api_errors": {},
+  "status_counts": {
+    "UNKNOWN_DATA": 320,
+    "NO_EARLY_VOLUME_ANOMALY": 56,
+    "VOLUME_SPIKE_UNCONFIRMED": 6,
+    "PRICE_STABLE_VOLUME_SURGE": 4,
+    "THIN_OR_UNKNOWN_TURNOVER": 5,
+    "LOW_15M_EUR_VOLUME": 2
+  },
+  "selected_markets": [
+    "AVAX-EUR",
+    "BIRB-EUR",
+    "DBR-EUR",
+    "KERNEL-EUR",
+    "LTC-EUR",
+    "SQD-EUR",
+    "TRUST-EUR",
+    "VSN-EUR",
+    "VVV-EUR",
+    "XLM-EUR"
+  ],
+  "warning": "No buy signal. Volume is unsigned OHLCV; taker buy/sell pressure unknown. No forward validation."
+}
