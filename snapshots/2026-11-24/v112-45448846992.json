@@ -1,0 +1,93 @@
+{
+  "version": "v1.12-prospective-outcomes-research",
+  "evaluated_at_utc": "2026-11-24T17:27:57+00:00",
+  "cohorts": 7,
+  "market_horizons": 11380,
+  "unique_markets_fetched": 401,
+  "status_counts": {
+    "NO_REFERENCE_PRICE": 3779,
+    "PENDING_HORIZON": 4064,
+    "OBSERVED": 2840,
+    "NO_CLOSE_WITHIN_10M": 697
+  },
+  "api_errors": {},
+  "by_horizon_and_group": {
+    "1": {
+      "CONTROL": {
+        "n": 191,
+        "avg_gross_return_pct": -0.01669,
+        "share_positive": 0.49215,
+        "share_up_10pct": 0.01047
+      },
+      "OTHER": {
+        "n": 376,
+        "avg_gross_return_pct": -0.10801,
+        "share_positive": 0.43351,
+        "share_up_10pct": 0.00532
+      },
+      "SETUP": {
+        "n": 562,
+        "avg_gross_return_pct": 0.03388,
+        "share_positive": 0.54626,
+        "share_up_10pct": 0.0
+      }
+    },
+    "4": {
+      "CONTROL": {
+        "n": 162,
+        "avg_gross_return_pct": -0.23218,
+        "share_positive": 0.34568,
+        "share_up_10pct": 0.03704
+      },
+      "OTHER": {
+        "n": 322,
+        "avg_gross_return_pct": -0.98498,
+        "share_positive": 0.2795,
+        "share_up_10pct": 0.00311
+      },
+      "SETUP": {
+        "n": 413,
+        "avg_gross_return_pct": -0.46099,
+        "share_positive": 0.39225,
+        "share_up_10pct": 0.00242
+      }
+    },
+    "12": {
+      "CONTROL": {
+        "n": 151,
+        "avg_gross_return_pct": -1.79724,
+        "share_positive": 0.21854,
+        "share_up_10pct": 0.03974
+      },
+      "OTHER": {
+        "n": 299,
+        "avg_gross_return_pct": -1.90133,
+        "share_positive": 0.18395,
+        "share_up_10pct": 0.01003
+      },
+      "SETUP": {
+        "n": 364,
+        "avg_gross_return_pct": -2.06225,
+        "share_positive": 0.14286,
+        "share_up_10pct": 0.00275
+      }
+    }
+  },
+  "source_unknown_data_diagnostics": {
+    "LAST_5M_CANDLE_UNAVAILABLE_AT_SCAN": 840,
+    "OBSERVED_2H_BELOW_70_PERCENT": 446,
+    "REFERENCE_OR_VOLUME_BASELINE_UNAVAILABLE": 34
+  },
+  "source_unknown_with_reference_price": 480,
+  "hypothetical_round_trip_cost_bps": 60.0,
+  "limitations": [
+    "No backdated signal reconstruction: V1.11 snapshots are fixed before outcome observation",
+    "Only horizons already elapsed are considered; after-target candles never used",
+    "No close within 10min of target is UNKNOWN, not a zero return",
+    "No reference price or stale reference remains non-evaluable",
+    "Costs are a user-adjustable hypothetical scenario; spread/slippage/fills NOT measured",
+    "All-markets descriptive comparison is not a matched control or causal/predictive edge test",
+    "Repeated cohorts for the same market are correlated, not independent observations",
+    "Missing data and surveillance interval may bias the sample"
+  ]
+}
