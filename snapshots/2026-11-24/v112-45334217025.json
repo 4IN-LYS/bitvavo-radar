@@ -1,0 +1,73 @@
+{
+  "version": "v1.12-prospective-outcomes-research",
+  "evaluated_at_utc": "2026-11-24T05:34:09+00:00",
+  "cohorts": 4,
+  "market_horizons": 6532,
+  "unique_markets_fetched": 355,
+  "status_counts": {
+    "NO_REFERENCE_PRICE": 1444,
+    "PENDING_HORIZON": 3677,
+    "OBSERVED": 975,
+    "NO_CLOSE_WITHIN_10M": 436
+  },
+  "api_errors": {},
+  "by_horizon_and_group": {
+    "1": {
+      "CONTROL": {
+        "n": 114,
+        "avg_gross_return_pct": -0.13936,
+        "share_positive": 0.4386,
+        "share_up_10pct": 0.0
+      },
+      "OTHER": {
+        "n": 187,
+        "avg_gross_return_pct": -0.23675,
+        "share_positive": 0.40107,
+        "share_up_10pct": 0.00535
+      },
+      "SETUP": {
+        "n": 251,
+        "avg_gross_return_pct": -0.01718,
+        "share_positive": 0.55378,
+        "share_up_10pct": 0.0
+      }
+    },
+    "4": {
+      "CONTROL": {
+        "n": 90,
+        "avg_gross_return_pct": -0.555,
+        "share_positive": 0.27778,
+        "share_up_10pct": 0.02222
+      },
+      "OTHER": {
+        "n": 153,
+        "avg_gross_return_pct": -0.92098,
+        "share_positive": 0.30065,
+        "share_up_10pct": 0.0
+      },
+      "SETUP": {
+        "n": 180,
+        "avg_gross_return_pct": -0.05159,
+        "share_positive": 0.42778,
+        "share_up_10pct": 0.00556
+      }
+    }
+  },
+  "source_unknown_data_diagnostics": {
+    "OBSERVED_2H_BELOW_70_PERCENT": 243,
+    "LAST_5M_CANDLE_UNAVAILABLE_AT_SCAN": 491,
+    "REFERENCE_OR_VOLUME_BASELINE_UNAVAILABLE": 16
+  },
+  "source_unknown_with_reference_price": 259,
+  "hypothetical_round_trip_cost_bps": 60.0,
+  "limitations": [
+    "No backdated signal reconstruction: V1.11 snapshots are fixed before outcome observation",
+    "Only horizons already elapsed are considered; after-target candles never used",
+    "No close within 10min of target is UNKNOWN, not a zero return",
+    "No reference price or stale reference remains non-evaluable",
+    "Costs are a user-adjustable hypothetical scenario; spread/slippage/fills NOT measured",
+    "All-markets descriptive comparison is not a matched control or causal/predictive edge test",
+    "Repeated cohorts for the same market are correlated, not independent observations",
+    "Missing data and surveillance interval may bias the sample"
+  ]
+}
