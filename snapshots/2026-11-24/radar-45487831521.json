@@ -1,0 +1,41 @@
+{
+  "version": "v1.9.2-volume-precursor-experimental",
+  "source_scan_utc": "2026-11-24T21:08:28+00:00",
+  "observed_at_utc": "2026-11-24T21:11:22.426000+00:00",
+  "markets_requested": 414,
+  "markets_analyzed": 414,
+  "api_errors": {},
+  "status_counts": {
+    "UNKNOWN_DATA": 316,
+    "PRICE_STABLE_VOLUME_SURGE": 14,
+    "NO_EARLY_VOLUME_ANOMALY": 61,
+    "LOW_15M_EUR_VOLUME": 10,
+    "EARLY_VOLUME_ANOMALY": 4,
+    "THIN_OR_UNKNOWN_TURNOVER": 6,
+    "VOLUME_SPIKE_UNCONFIRMED": 2,
+    "PRICE_ALREADY_EXTENDED": 1
+  },
+  "selected_markets": [
+    "ACU-EUR",
+    "AKT-EUR",
+    "AXS-EUR",
+    "BILL-EUR",
+    "CSPR-EUR",
+    "GLM-EUR",
+    "GOAT-EUR",
+    "MOODENG-EUR",
+    "NEAR-EUR",
+    "ONDO-EUR",
+    "PLUME-EUR",
+    "POWR-EUR",
+    "PROM-EUR",
+    "PUMP-EUR",
+    "TRUMP-EUR",
+    "UNI-EUR",
+    "WLFI-EUR",
+    "XAN-EUR",
+    "XRP-EUR",
+    "ZIG-EUR"
+  ],
+  "warning": "No buy signal. Volume is unsigned OHLCV; taker buy/sell pressure unknown. No forward validation."
+}
