@@ -1,0 +1,35 @@
+{
+  "version": "v1.11.0-phase-research",
+  "parent_scan_utc": "2026-11-25T01:33:32+00:00",
+  "markets": 414,
+  "phase_counts": {
+    "INSUFFICIENT_CANDLE_DATA": 210,
+    "ACTIVE_COMPRESSION_WATCH": 168,
+    "RISING_COMPRESSION_WATCH": 5,
+    "DOWNSIDE_OR_REVERSAL_RISK": 2,
+    "NO_ACTIVE_SETUP": 21,
+    "ISOLATED_VOLUME_SPIKE": 1,
+    "EARLY_VOLUME_WITHOUT_COMPRESSION": 1,
+    "EXTENSION_OR_LATE_MOVE": 2,
+    "COMPRESSION_WITH_STABLE_PRICE_VOLUME": 2,
+    "VOLUME_SURGE_UNCONFIRMED": 1,
+    "BREAKOUT_START_WATCH": 1
+  },
+  "high_priority_research": 0,
+  "reference_prices_available": 135,
+  "future_outcomes_available": 0,
+  "outcome_horizons_hours": [
+    1,
+    4,
+    12,
+    24
+  ],
+  "limitations": [
+    "Research classification; high priority is NOT a trading or buy recommendation",
+    "V1.10 observations are later than candle context and cannot confirm past pressure",
+    "Two buy-heavy samples do not prove institutional accumulation or future gain",
+    "PENDING horizons are planned, NOT observed returns or guaranteed evaluations",
+    "Historical V1.9.1/1.9.2 time alignment does not imply live detection",
+    "Unknown/unobserved liquidity is not zero liquidity"
+  ]
+}
