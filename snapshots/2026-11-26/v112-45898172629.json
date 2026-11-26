@@ -1,0 +1,113 @@
+{
+  "version": "v1.12-prospective-outcomes-research",
+  "evaluated_at_utc": "2026-11-26T21:26:41+00:00",
+  "cohorts": 13,
+  "market_horizons": 21536,
+  "unique_markets_fetched": 415,
+  "status_counts": {
+    "OBSERVED": 8696,
+    "NO_CLOSE_WITHIN_10M": 713,
+    "NO_REFERENCE_PRICE": 4254,
+    "PENDING_HORIZON": 7873
+  },
+  "api_errors": {},
+  "by_horizon_and_group": {
+    "1": {
+      "CONTROL": {
+        "n": 649,
+        "avg_gross_return_pct": 0.44793,
+        "share_positive": 0.67643,
+        "share_up_10pct": 0.00462
+      },
+      "OTHER": {
+        "n": 797,
+        "avg_gross_return_pct": 0.373,
+        "share_positive": 0.67503,
+        "share_up_10pct": 0.00251
+      },
+      "SETUP": {
+        "n": 1980,
+        "avg_gross_return_pct": 0.2618,
+        "share_positive": 0.63889,
+        "share_up_10pct": 0.00051
+      }
+    },
+    "4": {
+      "CONTROL": {
+        "n": 508,
+        "avg_gross_return_pct": 0.42628,
+        "share_positive": 0.59055,
+        "share_up_10pct": 0.01575
+      },
+      "OTHER": {
+        "n": 692,
+        "avg_gross_return_pct": 0.74653,
+        "share_positive": 0.67341,
+        "share_up_10pct": 0.01012
+      },
+      "SETUP": {
+        "n": 1658,
+        "avg_gross_return_pct": 0.26652,
+        "share_positive": 0.54946,
+        "share_up_10pct": 0.00241
+      }
+    },
+    "12": {
+      "CONTROL": {
+        "n": 367,
+        "avg_gross_return_pct": 0.69886,
+        "share_positive": 0.63215,
+        "share_up_10pct": 0.0327
+      },
+      "OTHER": {
+        "n": 476,
+        "avg_gross_return_pct": 1.19496,
+        "share_positive": 0.68277,
+        "share_up_10pct": 0.02941
+      },
+      "SETUP": {
+        "n": 1019,
+        "avg_gross_return_pct": 0.21983,
+        "share_positive": 0.51129,
+        "share_up_10pct": 0.00785
+      }
+    },
+    "24": {
+      "CONTROL": {
+        "n": 176,
+        "avg_gross_return_pct": 2.68582,
+        "share_positive": 0.77273,
+        "share_up_10pct": 0.05682
+      },
+      "OTHER": {
+        "n": 271,
+        "avg_gross_return_pct": 2.50932,
+        "share_positive": 0.85609,
+        "share_up_10pct": 0.0369
+      },
+      "SETUP": {
+        "n": 103,
+        "avg_gross_return_pct": 2.56241,
+        "share_positive": 0.78641,
+        "share_up_10pct": 0.03883
+      }
+    }
+  },
+  "source_unknown_data_diagnostics": {
+    "LAST_5M_CANDLE_UNAVAILABLE_AT_SCAN": 629,
+    "OBSERVED_2H_BELOW_70_PERCENT": 634,
+    "REFERENCE_OR_VOLUME_BASELINE_UNAVAILABLE": 69
+  },
+  "source_unknown_with_reference_price": 703,
+  "hypothetical_round_trip_cost_bps": 60.0,
+  "limitations": [
+    "No backdated signal reconstruction: V1.11 snapshots are fixed before outcome observation",
+    "Only horizons already elapsed are considered; after-target candles never used",
+    "No close within 10min of target is UNKNOWN, not a zero return",
+    "No reference price or stale reference remains non-evaluable",
+    "Costs are a user-adjustable hypothetical scenario; spread/slippage/fills NOT measured",
+    "All-markets descriptive comparison is not a matched control or causal/predictive edge test",
+    "Repeated cohorts for the same market are correlated, not independent observations",
+    "Missing data and surveillance interval may bias the sample"
+  ]
+}
