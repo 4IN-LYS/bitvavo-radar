@@ -1,0 +1,31 @@
+{
+  "version": "v1.9.3-sparse-market-execution-audit",
+  "source_scan_utc": "2026-11-25T23:08:36+00:00",
+  "observed_at_utc": "2026-11-26T00:29:49+00:00",
+  "markets_source": 413,
+  "unknown_in_source": 283,
+  "markets_selected": 48,
+  "markets_measured": 48,
+  "errors": {},
+  "activity_counts": {
+    "REGULAR_RECENT_TRADES": 24,
+    "SPARSE_RECENT_TRADES": 24
+  },
+  "feasibility_100_counts": {
+    "BOOK_FEASIBLE_RESEARCH": 47,
+    "NOT_VERIFIED_FOR_SIZE": 1
+  },
+  "feasibility_1000_counts": {
+    "BOOK_FEASIBLE_RESEARCH": 47,
+    "NOT_VERIFIED_FOR_SIZE": 1
+  },
+  "limitations": [
+    "Selected top turnover UNKNOWN only; not random or all-market sample",
+    "Order book snapshot and recent candles measured now, not at historic parent scan",
+    "Order book can change or be canceled before any order fills",
+    "Partial depth 1000 levels; if cannot fill, outcome is unknown/not feasible",
+    "NO TRADES does not necessarily mean an API error; no executions made",
+    "Book feasibility is NOT a buy signal or proof of a profitable opportunity",
+    "Thresholds are exploratory, not profitability-calibrated"
+  ]
+}
