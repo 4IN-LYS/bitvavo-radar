@@ -1,0 +1,25 @@
+{
+  "version": "v1.9.2-volume-precursor-experimental",
+  "source_scan_utc": "2026-11-28T07:53:12+00:00",
+  "observed_at_utc": "2026-11-28T07:55:54.056000+00:00",
+  "markets_requested": 337,
+  "markets_analyzed": 337,
+  "api_errors": {},
+  "status_counts": {
+    "UNKNOWN_DATA": 294,
+    "NO_EARLY_VOLUME_ANOMALY": 34,
+    "VOLUME_SPIKE_UNCONFIRMED": 2,
+    "LOW_15M_EUR_VOLUME": 3,
+    "PRICE_STABLE_VOLUME_SURGE": 2,
+    "EARLY_VOLUME_ANOMALY": 1,
+    "PRICE_DECLINING_WITH_VOLUME": 1
+  },
+  "selected_markets": [
+    "AZTEC-EUR",
+    "HYPE-EUR",
+    "NEAR-EUR",
+    "TAI-EUR",
+    "TAO-EUR"
+  ],
+  "warning": "No buy signal. Volume is unsigned OHLCV; taker buy/sell pressure unknown. No forward validation."
+}
